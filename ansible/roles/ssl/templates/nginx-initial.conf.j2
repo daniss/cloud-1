@@ -1,5 +1,10 @@
-# Initial Nginx Configuration (Before SSL)
-# Used during certificate acquisition
+upstream wordpress_fpm {
+    server wordpress:9000;
+}
+
+upstream phpmyadmin_backend {
+    server phpmyadmin:80;
+}
 
 server {
     listen 80;
@@ -21,7 +26,7 @@ server {
     location ~ \.php$ {
         try_files $uri =404;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
-        fastcgi_pass wordpress:9000;
+        fastcgi_pass wordpress_fpm;
         fastcgi_index index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
@@ -29,7 +34,7 @@ server {
     }
 
     location /phpmyadmin/ {
-        proxy_pass http://phpmyadmin:80/;
+        proxy_pass http://phpmyadmin_backend/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

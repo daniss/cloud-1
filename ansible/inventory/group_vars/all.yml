@@ -1,8 +1,3 @@
----
-# ===========================================
-# Cloud-1 Configuration Variables
-# ===========================================
-
 # Docker settings
 docker_version: "5:24.0*"
 docker_compose_version: "2.24.0"
@@ -12,7 +7,6 @@ app_name: "cloud1"
 app_directory: "/opt/{{ app_name }}"
 
 # Domain and SSL settings
-# Override these in your inventory or via --extra-vars
 domain_name: "{{ lookup('env', 'DOMAIN_NAME') | default('localhost', true) }}"
 letsencrypt_email: "{{ lookup('env', 'LETSENCRYPT_EMAIL') | default('admin@example.com', true) }}"
 enable_ssl: "{{ domain_name != 'localhost' }}"

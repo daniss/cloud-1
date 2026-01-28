@@ -1,6 +1,3 @@
----
-# WordPress role - Deploy Docker Compose stack
-
 - name: Create application directory
   ansible.builtin.file:
     path: "{{ app_directory }}"

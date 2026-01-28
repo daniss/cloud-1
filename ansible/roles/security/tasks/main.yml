@@ -1,6 +1,3 @@
----
-# Security role - Firewall and SSH hardening
-
 - name: Install UFW
   ansible.builtin.apt:
     name: ufw

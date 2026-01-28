@@ -1,21 +1,3 @@
----
-# ===========================================
-# Main Deployment Playbook
-# ===========================================
-# This playbook deploys the complete WordPress stack
-#
-# Prerequisites:
-# - Target server running Ubuntu 20.04 LTS
-# - SSH access configured
-# - Python 3 installed on target
-#
-# Usage:
-#   ansible-playbook playbooks/main.yml
-#
-# For parallel deployment to multiple servers:
-#   ansible-playbook playbooks/main.yml -f 5
-# ===========================================
-
 - name: Deploy Cloud-1 WordPress Infrastructure
   hosts: webservers
   become: true

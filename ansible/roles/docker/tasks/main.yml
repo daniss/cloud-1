@@ -1,6 +1,3 @@
----
-# Docker role - Install Docker CE and Docker Compose
-
 - name: Remove old Docker versions
   ansible.builtin.apt:
     name:
