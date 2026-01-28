@@ -1,0 +1,86 @@
+---
+# WordPress role - Deploy Docker Compose stack
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_directory }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Create subdirectories
+  ansible.builtin.file:
+    path: "{{ app_directory }}/{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  loop:
+    - nginx
+    - nginx/conf.d
+    - certbot
+    - certbot/conf
+    - certbot/www
+    - wordpress
+    - mysql
+
+- name: Template docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_directory }}/docker-compose.yml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Template .env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ app_directory }}/.env"
+    mode: '0600'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Template nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ app_directory }}/nginx/conf.d/default.conf"
+    mode: '0644'
+  notify: Reload Nginx
+
+- name: Pull Docker images
+  ansible.builtin.command: docker compose pull
+  args:
+    chdir: "{{ app_directory }}"
+  register: pull_result
+  changed_when: "'Pulled' in pull_result.stderr or 'Downloaded' in pull_result.stderr"
+
+- name: Start Docker Compose stack
+  ansible.builtin.command: docker compose up -d
+  args:
+    chdir: "{{ app_directory }}"
+  register: compose_result
+  changed_when: "'Started' in compose_result.stderr or 'Created' in compose_result.stderr"
+
+- name: Wait for MySQL to be ready
+  ansible.builtin.command: >
+    docker compose exec -T mysql mysqladmin ping -h localhost -u root -p{{ mysql_root_password }}
+  args:
+    chdir: "{{ app_directory }}"
+  register: mysql_ready
+  retries: 30
+  delay: 5
+  until: mysql_ready.rc == 0
+  changed_when: false
+  no_log: true
+
+- name: Display container status
+  ansible.builtin.command: docker compose ps
+  args:
+    chdir: "{{ app_directory }}"
+  register: compose_ps
+  changed_when: false
+
+- name: Show running containers
+  ansible.builtin.debug:
+    msg: "{{ compose_ps.stdout_lines }}"

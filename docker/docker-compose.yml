@@ -1,0 +1,138 @@
+# ===========================================
+# Cloud-1 Docker Compose Configuration
+# ===========================================
+# This is a standalone docker-compose.yml for local testing
+# The actual deployment uses the template in ansible/roles/wordpress/templates/
+#
+# Usage (for local testing):
+#   cp .env.example .env
+#   # Edit .env with your values
+#   cd docker
+#   docker compose up -d
+# ===========================================
+
+services:
+  # ===========================================
+  # Nginx Reverse Proxy
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    container_name: cloud1_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - wordpress_data:/var/www/html:ro
+    depends_on:
+      - wordpress
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # WordPress with PHP-FPM
+  # ===========================================
+  wordpress:
+    image: wordpress:php8.2-fpm
+    container_name: cloud1_wordpress
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_TABLE_PREFIX: wp_
+    volumes:
+      - wordpress_data:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ===========================================
+  # MySQL Database
+  # ===========================================
+  mysql:
+    image: mysql:8.0
+    container_name: cloud1_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wordpress}
+      MYSQL_USER: ${MYSQL_USER:-wordpress}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - backend
+    # NOT exposed to public - only accessible within Docker network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+  # ===========================================
+  # PHPMyAdmin
+  # ===========================================
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: cloud1_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      PMA_ABSOLUTE_URI: /phpmyadmin/
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - backend
+    # NOT exposed to public - accessed via Nginx reverse proxy
+
+  # ===========================================
+  # Certbot for Let's Encrypt (SSL)
+  # ===========================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: cloud1_certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    # Runs periodically to renew certificates
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true  # No external access - DB isolation
+
+# ===========================================
+# Volumes for Data Persistence
+# ===========================================
+volumes:
+  wordpress_data:
+    driver: local
+  mysql_data:
+    driver: local

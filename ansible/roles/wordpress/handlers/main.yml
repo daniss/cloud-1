@@ -1,0 +1,8 @@
+---
+# WordPress role handlers
+
+- name: Reload Nginx
+  ansible.builtin.command: docker compose exec -T nginx nginx -s reload
+  args:
+    chdir: "{{ app_directory }}"
+  ignore_errors: true

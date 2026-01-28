@@ -1,0 +1,76 @@
+---
+# SSL role - Let's Encrypt certificate management
+
+- name: Check if certificates already exist
+  ansible.builtin.stat:
+    path: "{{ app_directory }}/certbot/conf/live/{{ domain_name }}/fullchain.pem"
+  register: cert_exists
+
+- name: Create initial nginx config for certificate acquisition
+  ansible.builtin.template:
+    src: nginx-initial.conf.j2
+    dest: "{{ app_directory }}/nginx/conf.d/default.conf"
+    mode: '0644'
+  when: not cert_exists.stat.exists
+
+- name: Restart nginx for initial config
+  ansible.builtin.command: docker compose restart nginx
+  args:
+    chdir: "{{ app_directory }}"
+  when: not cert_exists.stat.exists
+
+- name: Wait for nginx to start
+  ansible.builtin.pause:
+    seconds: 5
+  when: not cert_exists.stat.exists
+
+- name: Obtain Let's Encrypt certificate
+  ansible.builtin.command: >
+    docker compose run --rm certbot certonly
+    --webroot
+    --webroot-path=/var/www/certbot
+    --email {{ letsencrypt_email }}
+    --agree-tos
+    --no-eff-email
+    --force-renewal
+    -d {{ domain_name }}
+  args:
+    chdir: "{{ app_directory }}"
+  register: certbot_result
+  when: not cert_exists.stat.exists
+  failed_when: certbot_result.rc != 0 and "Certificate not yet due for renewal" not in certbot_result.stderr
+
+- name: Update nginx configuration with SSL
+  ansible.builtin.template:
+    src: "../wordpress/templates/nginx.conf.j2"
+    dest: "{{ app_directory }}/nginx/conf.d/default.conf"
+    mode: '0644'
+  notify: Reload Nginx SSL
+
+- name: Reload nginx with SSL configuration
+  ansible.builtin.command: docker compose exec -T nginx nginx -s reload
+  args:
+    chdir: "{{ app_directory }}"
+  ignore_errors: true
+
+- name: Create certificate renewal cron job
+  ansible.builtin.cron:
+    name: "Renew Let's Encrypt certificates"
+    minute: "0"
+    hour: "3"
+    job: "cd {{ app_directory }} && docker compose run --rm certbot renew --quiet && docker compose exec -T nginx nginx -s reload"
+    user: "{{ ansible_user }}"
+
+- name: Display SSL status
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      SSL Configuration Complete!
+      ========================================
+      Domain: {{ domain_name }}
+      Certificate Path: {{ app_directory }}/certbot/conf/live/{{ domain_name }}/
+      Auto-renewal: Enabled (daily at 3:00 AM)
+      
+      Your site is now accessible at:
+        https://{{ domain_name }}
+      ========================================

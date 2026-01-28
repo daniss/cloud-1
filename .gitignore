@@ -1,0 +1,49 @@
+# Cloud-1 Git Ignore
+
+# Environment files with secrets
+.env
+*.env
+
+# Ansible
+*.retry
+ansible/.vault_pass
+
+# SSH Keys
+*.pem
+*.key
+id_rsa*
+
+# Terraform (if used)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated certificates (local backups)
+certbot/
+letsencrypt/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
