@@ -2,24 +2,24 @@
   ansible.builtin.stat:
     path: "{{ app_directory }}/certbot/conf/live/{{ domain_name }}/fullchain.pem"
   register: cert_exists
+  when: enable_ssl | bool
 
 - name: Create initial nginx config for certificate acquisition
   ansible.builtin.template:
     src: nginx-initial.conf.j2
     dest: "{{ app_directory }}/nginx/conf.d/default.conf"
     mode: '0644'
-  when: not cert_exists.stat.exists
+  when:
+    - enable_ssl | bool
+    - not cert_exists.stat.exists
 
 - name: Restart nginx for initial config
   ansible.builtin.command: docker compose restart nginx
   args:
     chdir: "{{ app_directory }}"
-  when: not cert_exists.stat.exists
-
-- name: Wait for nginx to start
-  ansible.builtin.pause:
-    seconds: 5
-  when: not cert_exists.stat.exists
+  when:
+    - enable_ssl | bool
+    - not cert_exists.stat.exists
 
 - name: Obtain Let's Encrypt certificate
   ansible.builtin.command: >
@@ -29,13 +29,42 @@
     --email {{ letsencrypt_email }}
     --agree-tos
     --no-eff-email
-    --force-renewal
     -d {{ domain_name }}
   args:
     chdir: "{{ app_directory }}"
   register: certbot_result
-  when: not cert_exists.stat.exists
+  when:
+    - enable_ssl | bool
+    - not cert_exists.stat.exists
   failed_when: certbot_result.rc != 0 and "Certificate not yet due for renewal" not in certbot_result.stderr
+
+- name: Ensure self-signed certificate directory exists
+  ansible.builtin.file:
+    path: "{{ app_directory }}/certbot/conf/live/selfsigned"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: not enable_ssl | bool
+
+- name: Check if self-signed certificate exists
+  ansible.builtin.stat:
+    path: "{{ app_directory }}/certbot/conf/live/selfsigned/fullchain.pem"
+  register: selfsigned_cert_exists
+  when: not enable_ssl | bool
+
+- name: Generate self-signed certificate
+  ansible.builtin.command: >
+    openssl req -x509 -nodes -newkey rsa:2048
+    -keyout {{ app_directory }}/certbot/conf/live/selfsigned/privkey.pem
+    -out {{ app_directory }}/certbot/conf/live/selfsigned/fullchain.pem
+    -days 365
+    -subj /CN={{ ansible_host }}
+  args:
+    creates: "{{ app_directory }}/certbot/conf/live/selfsigned/fullchain.pem"
+  when:
+    - not enable_ssl | bool
+    - not selfsigned_cert_exists.stat.exists
 
 - name: Update nginx configuration with SSL
   ansible.builtin.template:
@@ -57,17 +86,4 @@
     hour: "3"
     job: "cd {{ app_directory }} && docker compose run --rm certbot renew --quiet && docker compose exec -T nginx nginx -s reload"
     user: "{{ ansible_user }}"
-
-- name: Display SSL status
-  ansible.builtin.debug:
-    msg: |
-      ========================================
-      SSL Configuration Complete!
-      ========================================
-      Domain: {{ domain_name }}
-      Certificate Path: {{ app_directory }}/certbot/conf/live/{{ domain_name }}/
-      Auto-renewal: Enabled (daily at 3:00 AM)
-      
-      Your site is now accessible at:
-        https://{{ domain_name }}
-      ========================================
+  when: enable_ssl | bool

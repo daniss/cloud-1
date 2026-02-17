@@ -1,17 +1,4 @@
 #!/bin/bash
-# ===========================================
-# Cloud-1 Deployment Script
-# ===========================================
-# Automated deployment of WordPress on a remote server
-#
-# Prerequisites:
-# - Ubuntu 20.04 LTS server with SSH and Python installed
-# - Server IP added to ansible/inventory/hosts.yml
-#
-# Usage:
-#   ./deploy.sh
-# ===========================================
-
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,9 +33,9 @@ if [ -n "$LETSENCRYPT_EMAIL" ]; then
 fi
 
 if [ -n "$EXTRA_VARS" ]; then
-    ansible-playbook playbooks/main.yml --extra-vars "$EXTRA_VARS"
+    ANSIBLE_CONFIG="${ANSIBLE_DIR}/ansible.cfg" ansible-playbook -i inventory/hosts.yml playbooks/main.yml --extra-vars "$EXTRA_VARS"
 else
-    ansible-playbook playbooks/main.yml
+    ANSIBLE_CONFIG="${ANSIBLE_DIR}/ansible.cfg" ansible-playbook -i inventory/hosts.yml playbooks/main.yml
 fi
 
 echo ""

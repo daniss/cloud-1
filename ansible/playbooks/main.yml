@@ -12,17 +12,6 @@
         fail_msg: "This playbook requires Ubuntu 20.04 LTS or later"
         success_msg: "OS validated: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
-    - name: Display deployment information
-      ansible.builtin.debug:
-        msg: |
-          ========================================
-          Starting Cloud-1 Deployment
-          ========================================
-          Target: {{ inventory_hostname }}
-          Domain: {{ domain_name }}
-          SSL Enabled: {{ enable_ssl }}
-          ========================================
-
   roles:
     - role: common
       tags: [common, base]
@@ -38,40 +27,3 @@
     
     - role: ssl
       tags: [ssl, https]
-      when: enable_ssl | bool
-
-  post_tasks:
-    - name: Display deployment summary
-      ansible.builtin.debug:
-        msg: |
-          ========================================
-          Cloud-1 Deployment Complete!
-          ========================================
-          {% if enable_ssl | bool %}
-          WordPress: https://{{ domain_name }}
-          PHPMyAdmin: https://{{ domain_name }}/phpmyadmin
-          {% else %}
-          WordPress: http://{{ ansible_host }}
-          PHPMyAdmin: http://{{ ansible_host }}/phpmyadmin
-          {% endif %}
-          
-          Database Credentials:
-            Host: mysql (internal)
-            Database: {{ mysql_database }}
-            User: {{ mysql_user }}
-          
-          To check container status:
-            ssh {{ ansible_user }}@{{ ansible_host }}
-            cd {{ app_directory }}
-            docker compose ps
-          ========================================
-
-    - name: Wait for WordPress to be ready
-      ansible.builtin.uri:
-        url: "http://localhost"
-        status_code: [200, 302]
-      register: wp_check
-      retries: 30
-      delay: 10
-      until: wp_check.status in [200, 302]
-      delegate_to: "{{ inventory_hostname }}"

@@ -1,10 +1,6 @@
 services:
-  # ===========================================
-  # Nginx Reverse Proxy
-  # ===========================================
   nginx:
     image: nginx:alpine
-    container_name: {{ app_name }}_nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -19,18 +15,9 @@ services:
     networks:
       - frontend
       - backend
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # ===========================================
-  # WordPress with PHP-FPM
-  # ===========================================
   wordpress:
     image: wordpress:php8.2-fpm
-    container_name: {{ app_name }}_wordpress
     restart: unless-stopped
     environment:
       WORDPRESS_DB_HOST: mysql:3306
@@ -41,23 +28,12 @@ services:
     volumes:
       - wordpress_data:/var/www/html
     depends_on:
-      mysql:
-        condition: service_healthy
+      - mysql
     networks:
       - backend
-    healthcheck:
-      test: ["CMD-SHELL", "php-fpm-healthcheck || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
-  # ===========================================
-  # MySQL Database
-  # ===========================================
   mysql:
     image: mysql:8.0
-    container_name: {{ app_name }}_mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -68,20 +44,9 @@ services:
       - mysql_data:/var/lib/mysql
     networks:
       - backend
-    # NOT exposed to public - only accessible within Docker network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
 
-  # ===========================================
-  # PHPMyAdmin
-  # ===========================================
   phpmyadmin:
     image: phpmyadmin:latest
-    container_name: {{ app_name }}_phpmyadmin
     restart: unless-stopped
     environment:
       PMA_HOST: mysql
@@ -89,37 +54,23 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       PMA_ABSOLUTE_URI: /phpmyadmin/
     depends_on:
-      mysql:
-        condition: service_healthy
+      - mysql
     networks:
       - backend
-    # NOT exposed to public - accessed via Nginx reverse proxy
 
-  # ===========================================
-  # Certbot for Let's Encrypt (SSL)
-  # ===========================================
   certbot:
     image: certbot/certbot:latest
-    container_name: {{ app_name }}_certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    # Runs periodically to renew certificates
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
-# ===========================================
-# Networks
-# ===========================================
 networks:
   frontend:
     driver: bridge
   backend:
     driver: bridge
-    internal: true  # No external access - DB isolation
+    internal: true
 
-# ===========================================
-# Volumes for Data Persistence
-# ===========================================
 volumes:
   wordpress_data:
     driver: local

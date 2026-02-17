@@ -70,14 +70,3 @@
   until: mysql_ready.rc == 0
   changed_when: false
   no_log: true
-
-- name: Display container status
-  ansible.builtin.command: docker compose ps
-  args:
-    chdir: "{{ app_directory }}"
-  register: compose_ps
-  changed_when: false
-
-- name: Show running containers
-  ansible.builtin.debug:
-    msg: "{{ compose_ps.stdout_lines }}"

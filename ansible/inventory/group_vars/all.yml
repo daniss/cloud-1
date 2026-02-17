@@ -1,7 +1,3 @@
-# Docker settings
-docker_version: "5:24.0*"
-docker_compose_version: "2.24.0"
-
 # Application settings
 app_name: "cloud1"
 app_directory: "/opt/{{ app_name }}"
@@ -22,10 +18,3 @@ wordpress_table_prefix: "wp_"
 
 # Security settings
 ssh_port: 22
-allowed_ports:
-  - "{{ ssh_port }}"
-  - 80
-  - 443
-
-# Timezone
-server_timezone: "Europe/Paris"

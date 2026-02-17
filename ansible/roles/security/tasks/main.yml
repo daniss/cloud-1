@@ -37,11 +37,11 @@
     state: enabled
     logging: 'on'
 
-- name: Disable root SSH login
+- name: Allow root SSH login with SSH keys only
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: '^#?PermitRootLogin'
-    line: 'PermitRootLogin no'
+    line: 'PermitRootLogin prohibit-password'
     validate: 'sshd -t -f %s'
   notify: Restart SSH
 
@@ -61,27 +61,31 @@
     validate: 'sshd -t -f %s'
   notify: Restart SSH
 
-- name: Install fail2ban
-  ansible.builtin.apt:
-    name: fail2ban
-    state: present
+- name: Check if deploy user authorized_keys exists
+  ansible.builtin.stat:
+    path: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+  register: deploy_user_authorized_keys
+  when: ansible_user != 'root'
 
-- name: Configure fail2ban for SSH
+- name: Ensure root .ssh directory exists
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  when:
+    - ansible_user != 'root'
+    - deploy_user_authorized_keys.stat.exists
+
+- name: Copy deploy user authorized_keys to root
   ansible.builtin.copy:
-    content: |
-      [sshd]
-      enabled = true
-      port = {{ ssh_port }}
-      filter = sshd
-      logpath = /var/log/auth.log
-      maxretry = 5
-      bantime = 3600
-    dest: /etc/fail2ban/jail.local
-    mode: '0644'
-  notify: Restart fail2ban
-
-- name: Start and enable fail2ban
-  ansible.builtin.systemd:
-    name: fail2ban
-    state: started
-    enabled: true
+    src: "/home/{{ ansible_user }}/.ssh/authorized_keys"
+    dest: /root/.ssh/authorized_keys
+    owner: root
+    group: root
+    mode: '0600'
+    remote_src: true
+  when:
+    - ansible_user != 'root'
+    - deploy_user_authorized_keys.stat.exists

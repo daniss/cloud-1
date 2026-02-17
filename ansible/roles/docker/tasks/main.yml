@@ -51,27 +51,3 @@
     name: "{{ ansible_user }}"
     groups: docker
     append: true
-
-- name: Create Docker daemon configuration
-  ansible.builtin.copy:
-    content: |
-      {
-        "log-driver": "json-file",
-        "log-opts": {
-          "max-size": "10m",
-          "max-file": "3"
-        },
-        "storage-driver": "overlay2"
-      }
-    dest: /etc/docker/daemon.json
-    mode: '0644'
-  notify: Restart Docker
-
-- name: Verify Docker installation
-  ansible.builtin.command: docker --version
-  register: docker_version_output
-  changed_when: false
-
-- name: Display Docker version
-  ansible.builtin.debug:
-    msg: "Docker installed: {{ docker_version_output.stdout }}"

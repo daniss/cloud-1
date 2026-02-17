@@ -6,54 +6,23 @@ upstream phpmyadmin_backend {
     server phpmyadmin:80;
 }
 
-# HTTP Server - Redirect to HTTPS or serve directly
 server {
     listen 80;
     listen [::]:80;
     server_name {{ domain_name }};
 
-    # Let's Encrypt challenge location
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
 
 {% if enable_ssl | bool %}
-    # Redirect all other HTTP traffic to HTTPS
     location / {
         return 301 https://$host$request_uri;
     }
-}
-
-# HTTPS Server
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name {{ domain_name }};
-
-    # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/{{ domain_name }}/privkey.pem;
-    
-    # Basic SSL Settings
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers off;
 {% else %}
-    # Non-SSL configuration - serve HTTP directly
-{% endif %}
-
     root /var/www/html;
     index index.php index.html index.htm;
 
-    # Logging
-    access_log /var/log/nginx/wordpress_access.log;
-    error_log /var/log/nginx/wordpress_error.log;
-
-    # Max upload size
-    client_max_body_size 64M;
-
-    # ===========================================
-    # PHPMyAdmin
-    # ===========================================
     location /phpmyadmin/ {
         proxy_pass http://phpmyadmin_backend/;
         proxy_set_header Host $host;
@@ -62,14 +31,10 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # ===========================================
-    # WordPress
-    # ===========================================
     location / {
         try_files $uri $uri/ /index.php?$args;
     }
 
-    # PHP-FPM handling
     location ~ \.php$ {
         try_files $uri =404;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
@@ -78,13 +43,48 @@ server {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param PATH_INFO $fastcgi_path_info;
-{% if enable_ssl | bool %}
-        fastcgi_param HTTPS on;
+    }
 {% endif %}
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name {{ domain_name }};
+
+{% if enable_ssl | bool %}
+    ssl_certificate /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ domain_name }}/privkey.pem;
+{% else %}
+    ssl_certificate /etc/letsencrypt/live/selfsigned/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/selfsigned/privkey.pem;
+{% endif %}
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    root /var/www/html;
+    index index.php index.html index.htm;
+
+    location /phpmyadmin/ {
+        proxy_pass http://phpmyadmin_backend/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Deny access to sensitive files
-    location ~ /\. {
-        deny all;
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass wordpress_fpm;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_param HTTPS on;
     }
 }
