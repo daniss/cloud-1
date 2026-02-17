@@ -46,6 +46,7 @@ Automated deployment of WordPress on a remote server using Ansible and Docker.
 - ✅ Database not exposed to internet
 - ✅ TLS support (Let's Encrypt)
 - ✅ URL-based routing
+- ✅ Only ports 22, 80, and 443 exposed via UFW
 - ✅ Parallel deployment support
 
 ## Access
@@ -60,7 +61,7 @@ cloud-1/
 ├── ansible/
 │   ├── ansible.cfg
 │   ├── inventory/hosts.yml
-│   ├── group_vars/all.yml
+│   ├── inventory/group_vars/all.yml
 │   ├── playbooks/main.yml
 │   └── roles/
 │       ├── common/
@@ -68,8 +69,6 @@ cloud-1/
 │       ├── security/
 │       ├── wordpress/
 │       └── ssl/
-├── docker/
-│   └── docker-compose.yml
 ├── .env.example
 ├── deploy.sh
 └── README.md
